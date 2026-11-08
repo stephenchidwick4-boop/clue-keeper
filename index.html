@@ -66,7 +66,7 @@
   @keyframes bob { 0%,100% { translate: 0 0; } 50% { translate: 0 -5px; } }
 
   main { position: relative; z-index: 1; max-width: 560px; margin: 0 auto; display: grid; gap: 18px; }
-  header { text-align: center; display: grid; gap: 6px; justify-items: center; }
+  header { position: relative; text-align: center; display: grid; gap: 6px; justify-items: center; }
   h1 { font-family: var(--display); font-weight: 400; font-size: clamp(32px, 9vw, 46px); margin: 0;
     color: var(--pink-deep); text-shadow: 3px 3px 0 #6a4fb3, 0 0 24px rgba(255,143,184,.45); letter-spacing: 1px; text-wrap: balance; }
   .sub { color: var(--page-muted); margin: 0; font-size: 15px; }
@@ -126,7 +126,8 @@
 
   /* ----- envelope ----- */
   /* only the envelope body is tappable: the button's box and the sign/arm let taps through to whatever is underneath */
-  .envelope { position: fixed; z-index: 5; top: calc(28px + env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px));
+  /* lives inside the header, so it scrolls away with the page and disappears when the chat hides the header */
+  .envelope { position: absolute; z-index: 5; top: 0; right: -4px;
     width: 120px; height: 72px; padding: 0; background: none; box-shadow: none; border-radius: 16px; pointer-events: none; }
   .envelope svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 0 10px rgba(255,143,184,.35)); }
   .envelope .env-body { pointer-events: auto; }
@@ -200,32 +201,33 @@
 
 <div class="sky" aria-hidden="true" id="sky"></div>
 
-<button class="envelope" id="envelope" aria-label="Open messages">
-  <svg viewBox="0 0 150 90" aria-hidden="true">
-    <!-- sign held up by a pink arm, only shown when there is something new -->
-    <g class="sign">
-      <rect x="18" y="4" width="96" height="28" rx="10" fill="#fff" stroke="#e2669a" stroke-width="2.5"/>
-      <text x="66" y="23" text-anchor="middle" font-size="13" font-weight="700" fill="#e2669a" font-family="Zen Maru Gothic, sans-serif">New Message</text>
-      <rect x="64" y="31" width="4" height="26" rx="1" fill="#c9a06a"/>
-      <!-- arm: same pink as the envelope, short, from its side to the sign post -->
-      <path d="M82 68 Q74 66 68 58" stroke="#e2669a" stroke-width="10" fill="none" stroke-linecap="round"/>
-      <path d="M82 68 Q74 66 68 58" stroke="#ffd0e0" stroke-width="6" fill="none" stroke-linecap="round"/>
-      <circle cx="67" cy="57" r="5" fill="#ffd0e0" stroke="#e2669a" stroke-width="2"/>
-    </g>
-    <!-- envelope body: the only tappable part -->
-    <g class="env-body">
-      <rect x="80" y="48" width="64" height="40" rx="9" fill="#ffd0e0" stroke="#e2669a" stroke-width="3"/>
-      <path d="M82 52 L112 74 L142 52" fill="none" stroke="#e2669a" stroke-width="3" stroke-linejoin="round"/>
-      <!-- face -->
-      <circle cx="102" cy="78" r="2.2" fill="#2a1a3a"/><circle cx="122" cy="78" r="2.2" fill="#2a1a3a"/>
-      <path d="M108 81 Q112 84 116 81" stroke="#2a1a3a" stroke-width="1.8" fill="none" stroke-linecap="round"/>
-      <circle cx="95" cy="81" r="3" fill="#ff8fb8" opacity=".6"/><circle cx="129" cy="81" r="3" fill="#ff8fb8" opacity=".6"/>
-    </g>
-  </svg>
-</button>
-
 <main>
   <header>
+    <button class="envelope" id="envelope" aria-label="Open messages">
+      <svg viewBox="0 0 150 90" aria-hidden="true">
+        <!-- sign held up by a pink arm, only shown when there is something new -->
+        <g class="sign">
+          <rect x="18" y="4" width="96" height="28" rx="10" fill="#fff" stroke="#e2669a" stroke-width="2.5"/>
+          <text x="66" y="23" text-anchor="middle" font-size="13" font-weight="700" fill="#e2669a" font-family="Zen Maru Gothic, sans-serif">New Message</text>
+          <rect x="64" y="31" width="4" height="26" rx="1" fill="#c9a06a"/>
+          <!-- arm: same pink as the envelope, short, from its side to the sign post -->
+          <path d="M82 68 Q74 66 68 58" stroke="#e2669a" stroke-width="10" fill="none" stroke-linecap="round"/>
+          <path d="M82 68 Q74 66 68 58" stroke="#ffd0e0" stroke-width="6" fill="none" stroke-linecap="round"/>
+          <circle cx="67" cy="57" r="5" fill="#ffd0e0" stroke="#e2669a" stroke-width="2"/>
+        </g>
+        <!-- envelope body: the only tappable part -->
+        <g class="env-body">
+          <!-- invisible: makes the tap target 44px or more, even at the squashed moment of the jump -->
+          <rect x="78" y="36" width="68" height="64" fill="transparent" pointer-events="auto"/>
+          <rect x="80" y="48" width="64" height="40" rx="9" fill="#ffd0e0" stroke="#e2669a" stroke-width="3"/>
+          <path d="M82 52 L112 74 L142 52" fill="none" stroke="#e2669a" stroke-width="3" stroke-linejoin="round"/>
+          <!-- face -->
+          <circle cx="102" cy="78" r="2.2" fill="#2a1a3a"/><circle cx="122" cy="78" r="2.2" fill="#2a1a3a"/>
+          <path d="M108 81 Q112 84 116 81" stroke="#2a1a3a" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+          <circle cx="95" cy="81" r="3" fill="#ff8fb8" opacity=".6"/><circle cx="129" cy="81" r="3" fill="#ff8fb8" opacity=".6"/>
+        </g>
+      </svg>
+    </button>
     <svg class="mascot" viewBox="0 0 260 120" role="img" aria-label="Three smiling kawaii stars, each holding a golden key">
       <defs>
         <!-- one five-pointed star, reused three times -->
@@ -526,7 +528,7 @@
     if (prefill) { compose.value = prefill; }   // no focus: we don't want the keyboard popping up
   }
   function closeChat() { chat.hidden = true; header.hidden = false; mainCard.hidden = false; howto.hidden = false; }
-  envelope.onclick = () => chat.hidden ? openChat() : closeChat();
+  envelope.onclick = () => openChat();
   $("btn-back").onclick = closeChat;
   $("btn-switch").onclick = () => { me = me === "Aerin" ? "Dad" : "Aerin"; $("me-name").textContent = me; renderThread(""); };
   $("btn-post").onclick = () => {
