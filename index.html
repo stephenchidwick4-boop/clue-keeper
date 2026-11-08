@@ -12,7 +12,7 @@
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <title>Clue Keeper</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Zen+Maru+Gothic:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Pacifico&family=Zen+Maru+Gothic:wght@400;500;700&display=swap">
 <style>
   /* Layout: one soft card floating on a sakura sky; message box above, result box below, buttons between. */
   /* Night sky: a single committed dark look. The page is black with twinkling stars;
@@ -113,12 +113,9 @@
   button:focus-visible { outline: 3px solid var(--fg); outline-offset: 3px; }
   .encode { background: var(--pink); }
   .decode { background: var(--mint); }
-  .copy { background: var(--gold); flex: 0 0 auto; font-size: 15px; padding: 10px 16px; }
   .clear { background: var(--line); flex: 0 0 auto; font-size: 15px; padding: 10px 16px; }
 
   .result-wrap { display: grid; gap: 8px; }
-  .result-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .result-head strong { font-size: 15px; }
   .result { min-height: 96px; background: var(--bg2); border: 2px dashed var(--pink); border-radius: 16px;
     padding: 14px; font-family: var(--display); font-size: 20px; letter-spacing: 2px; line-height: 1.5;
     overflow-wrap: anywhere; min-width: 0; }
@@ -126,6 +123,61 @@
   .toast { text-align: center; color: var(--pink-deep); font-weight: 700; min-height: 1.4em; font-size: 15px; }
   .shake { animation: shake .35s; }
   @keyframes shake { 25% { transform: translateX(-5px);} 75% { transform: translateX(5px);} }
+
+  /* ----- envelope ----- */
+  .envelope { position: fixed; z-index: 5; top: calc(10px + env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px));
+    width: 120px; height: 72px; padding: 0; background: none; box-shadow: none; border-radius: 16px; }
+  .envelope svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 0 10px rgba(255,143,184,.35)); }
+  .envelope .sign { display: none; }
+  .envelope.unread .sign { display: inline; }
+  .envelope.unread svg { animation: jump 1.1s infinite; transform-origin: 75% 100%; }
+  /* a real jump: crouch, spring up fast, hang at the top, drop and land with a squash */
+  @keyframes jump {
+    0%   { transform: translateY(0) scale(1, 1); animation-timing-function: ease-in; }
+    12%  { transform: translateY(2px) scale(1.08, .9); animation-timing-function: cubic-bezier(.2,.9,.4,1); }
+    45%  { transform: translateY(-20px) scale(.96, 1.06); animation-timing-function: cubic-bezier(.6,0,.9,.4); }
+    72%  { transform: translateY(0) scale(1.1, .88); animation-timing-function: ease-out; }
+    84%  { transform: translateY(0) scale(.98, 1.03); }
+    100% { transform: translateY(0) scale(1, 1); }
+  }
+  @media (prefers-reduced-motion: reduce) { .envelope.unread svg { animation: none; } }
+
+  /* ----- chat view ----- */
+  .chat { background: var(--card); border: 3px solid var(--line); border-radius: 28px; padding: 16px;
+    box-shadow: 0 10px 0 var(--line), 0 0 40px rgba(199,179,255,.18); display: grid; gap: 12px; color: var(--fg); }
+  .chat-top { display: flex; align-items: center; gap: 10px; }
+  .back { background: var(--bg2); box-shadow: none; width: 40px; height: 40px; padding: 0; font-size: 26px; line-height: 1; flex: 0 0 auto; }
+  .chat-title { display: grid; line-height: 1.25; min-width: 0; }
+  .chat-title strong { font-family: "Pacifico", "Brush Script MT", cursive; font-weight: 400; font-size: 22px; color: var(--pink-deep); }
+  .who { font-size: 13px; color: var(--muted); }
+  .linklike { background: none; box-shadow: none; padding: 0; font: inherit; color: var(--pink-deep); text-decoration: underline; font-size: 13px; }
+  .chat-secret input { font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-weight: 700;
+    letter-spacing: 4px; text-transform: uppercase; font-size: 26px; line-height: 1; padding-right: 60px; color: var(--fg); }
+  .chat-secret input.starry { color: #d9a400; text-shadow: 0 0 6px rgba(255,211,110,.7); }
+  .keybtn.peeking { background: var(--gold); }
+  .thread-wrap { position: relative; border-radius: 18px; overflow: hidden; background: var(--bg); border: 2px solid var(--line); }
+  .thread { display: grid; gap: 10px; max-height: 50vh; overflow-y: auto; background: transparent; padding: 12px; position: relative; z-index: 1; }
+  /* cherry blossom petals: one layer behind the bubbles, a lighter one drifting in front */
+  .petals { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: 18px; }
+  .petals.behind { z-index: 0; }
+  .petals.front { z-index: 2; opacity: .6; }
+  .thread .bubble { position: relative; z-index: 1; }
+  .petal { position: absolute; top: -24px; width: 14px; height: 14px; border-radius: 60% 0 60% 0;
+    background: #ffb7d0; box-shadow: inset -2px -2px 0 rgba(226,102,154,.35); animation: fall linear infinite; }
+  @keyframes fall { 0% { transform: translate(0,-24px) rotate(0); } 50% { transform: translate(18px, 30vh) rotate(220deg); } 100% { transform: translate(-10px, 62vh) rotate(480deg); } }
+  @media (prefers-reduced-motion: reduce) { .petal { animation: none; } }
+  .bubble { max-width: 82%; padding: 10px 14px; border-radius: 18px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 15px;
+    overflow-wrap: anywhere; min-width: 0; display: grid; gap: 3px; }
+  .bubble.them { justify-self: start; background: #fff; border: 2px solid var(--line); border-bottom-left-radius: 6px; }
+  .bubble.me { justify-self: end; background: var(--pink); color: #4a2a40; border-bottom-right-radius: 6px; }
+  .bubble small { font-family: var(--body); font-size: 11px; opacity: .7; }
+  .bubble.readable { font-family: var(--body); font-size: 16px; }
+  .thread.decoded .bubble { box-shadow: 0 0 0 2px var(--gold) inset; }
+  .compose { display: flex; gap: 8px; align-items: flex-end; }
+  .compose textarea { flex: 1 1 auto; min-height: 44px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 15px; }
+  .sendbtn { flex: 0 0 auto; padding: 12px 16px; font-size: 16px; }
+  .sketch-note { margin: 0; text-align: center; font-size: 12px; color: var(--muted); }
+  .send { background: var(--lilac); }
 
   details { background: var(--page-glow); border: 3px solid #3a2d5c; border-radius: 22px; padding: 14px 18px; color: var(--page-fg); }
   summary { cursor: pointer; font-weight: 700; color: var(--pink-deep); }
@@ -145,6 +197,28 @@
 <body>
 
 <div class="sky" aria-hidden="true" id="sky"></div>
+
+<button class="envelope" id="envelope" aria-label="Open messages">
+  <svg viewBox="0 0 150 90" aria-hidden="true">
+    <!-- sign held up by a pink arm, only shown when there is something new -->
+    <g class="sign">
+      <rect x="18" y="4" width="96" height="28" rx="10" fill="#fff" stroke="#e2669a" stroke-width="2.5"/>
+      <text x="66" y="23" text-anchor="middle" font-size="13" font-weight="700" fill="#e2669a" font-family="Zen Maru Gothic, sans-serif">New Message</text>
+      <rect x="64" y="31" width="4" height="26" rx="1" fill="#c9a06a"/>
+      <!-- arm: same pink as the envelope, short, from its side to the sign post -->
+      <path d="M82 68 Q74 66 68 58" stroke="#e2669a" stroke-width="10" fill="none" stroke-linecap="round"/>
+      <path d="M82 68 Q74 66 68 58" stroke="#ffd0e0" stroke-width="6" fill="none" stroke-linecap="round"/>
+      <circle cx="67" cy="57" r="5" fill="#ffd0e0" stroke="#e2669a" stroke-width="2"/>
+    </g>
+    <!-- envelope body -->
+    <rect x="80" y="48" width="64" height="40" rx="9" fill="#ffd0e0" stroke="#e2669a" stroke-width="3"/>
+    <path d="M82 52 L112 74 L142 52" fill="none" stroke="#e2669a" stroke-width="3" stroke-linejoin="round"/>
+    <!-- face -->
+    <circle cx="102" cy="78" r="2.2" fill="#2a1a3a"/><circle cx="122" cy="78" r="2.2" fill="#2a1a3a"/>
+    <path d="M108 81 Q112 84 116 81" stroke="#2a1a3a" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+    <circle cx="95" cy="81" r="3" fill="#ff8fb8" opacity=".6"/><circle cx="129" cy="81" r="3" fill="#ff8fb8" opacity=".6"/>
+  </svg>
+</button>
 
 <main>
   <header>
@@ -240,19 +314,53 @@
     </div>
 
     <div class="result-wrap">
-      <div class="result-head">
-        <strong id="result-label">Result</strong>
-        <div class="row" style="flex:0 0 auto">
-          <button class="copy" id="btn-copy">Copy</button>
-          <button class="clear" id="btn-swap" title="Move the result up into the message box">Use as message</button>
-        </div>
-      </div>
+      <strong id="result-label">Result</strong>
       <div class="result" id="result" aria-live="polite"></div>
       <div class="toast" id="toast"></div>
     </div>
+
+    <div class="row">
+      <button class="send" id="btn-send">✉ Send</button>
+      <button class="clear" id="btn-clear">Clear</button>
+    </div>
   </section>
 
-  <details>
+  <!-- ===== chat view (sketch: pretend messages for now) ===== -->
+  <section class="chat" id="chat" hidden>
+    <div class="chat-top">
+      <button class="back" id="btn-back" aria-label="Back to the encoder">‹</button>
+      <div class="chat-title">
+        <strong>Aerin ✦ Dad</strong>
+        <span class="who">You are <b id="me-name">Aerin</b> · <button class="linklike" id="btn-switch">switch</button></span>
+      </div>
+    </div>
+    <div class="secret-wrap chat-secret">
+      <input id="chat-secret" type="text" value="" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Secret word for reading messages">
+      <button type="button" class="eye keybtn" id="keybtn" aria-label="Hold to read the messages" title="Hold to read">
+        <svg viewBox="0 0 40 28" aria-hidden="true">
+          <g transform="translate(6 14)">
+            <circle cx="0" cy="0" r="6.5" fill="#ffd36e" stroke="#e6a81e" stroke-width="2.5"/>
+            <circle cx="0" cy="0" r="2" fill="#8a5a00"/>
+            <rect x="5" y="-1.8" width="24" height="3.6" rx="1.5" fill="#ffd36e" stroke="#e6a81e" stroke-width="1.5"/>
+            <rect x="21" y="1" width="3.2" height="6" fill="#ffd36e" stroke="#e6a81e" stroke-width="1.5"/>
+            <rect x="26" y="1" width="3.2" height="5" fill="#ffd36e" stroke="#e6a81e" stroke-width="1.5"/>
+          </g>
+        </svg>
+      </button>
+    </div>
+    <div class="thread-wrap" id="thread-wrap">
+      <div class="petals behind" id="petals-behind" aria-hidden="true"></div>
+      <div class="thread" id="thread" aria-live="polite"></div>
+      <div class="petals front" id="petals-front" aria-hidden="true"></div>
+    </div>
+    <div class="compose">
+      <textarea id="compose" rows="1" aria-label="Encoded message to send"></textarea>
+      <button class="encode sendbtn" id="btn-post">Send ✦</button>
+    </div>
+    <p class="sketch-note">Sketch mode: messages are pretend and live only on this screen for now.</p>
+  </section>
+
+  <details id="howto">
     <summary>How does the magic work?</summary>
     <p>Every letter has a number: A is 0, B is 1, C is 2... all the way to Z, which is 25.
       The secret word tells each letter of your message how far to jump along the alphabet.
@@ -309,77 +417,140 @@
 
   $("btn-encode").onclick = () => run("encode");
   $("btn-decode").onclick = () => run("decode");
-  $("btn-swap").onclick = () => { if (!result.textContent) return; message.value = result.textContent; result.textContent = ""; message.focus(); say("Moved into the message box."); };
-  $("btn-copy").onclick = async () => {
-    const text = result.textContent;
-    if (!text) { say("Nothing to copy yet."); return; }
-    try { await navigator.clipboard.writeText(text); say("Copied!"); }
-    catch { const r = document.createRange(); r.selectNodeContents(result); const s = getSelection(); s.removeAllRanges(); s.addRange(r); say("Press copy on your keyboard."); }
+  $("btn-clear").onclick = () => { message.value = ""; result.textContent = ""; $("result-label").textContent = "Result"; say("Wiped clean ✧"); };
+  $("btn-send").onclick = () => {
+    if (!result.textContent || lastMode !== "encode") { say("Encode a message first!"); return; }
+    openChat(result.textContent);
   };
   // ---------- secret word peeking ----------
-  // We keep the real word in `realSecret` and draw dots in the box ourselves.
-  // Each letter you type shows for 1 second, then becomes a dot. The other letters stay hidden.
-  // Holding the eye shows the whole word until you let go.
-  const eye = $("eye");
+  // We keep the real word in our own variable and draw stars in the box ourselves.
+  // Each letter you type shows for 1 second, then becomes a star. The other letters stay hidden.
+  // Holding the button (eye or key) shows the whole word until you let go.
+  // `onHold(true/false)` lets the chat view do something extra while held.
   const DOT = "★";   // Aerin's idea: stars instead of dots, to match the night sky
-  let realSecret = secret.value;
-  let fresh = [];          // { i: position, until: time } for letters still showing
-  let holding = false, caret = realSecret.length, renderTimer;
-
-  getSecret = () => realSecret;
-  function render() {
-    const now = Date.now();
-    fresh = fresh.filter(f => f.until > now);
-    let shown = "";
-    for (let i = 0; i < realSecret.length; i++) {
-      shown += (holding || fresh.some(f => f.i === i)) ? realSecret[i] : DOT;
+  function makeSecretBox(input, btn, onHold) {
+    let real = input.value, fresh = [], holding = false, caret = real.length, timer;
+    function render() {
+      const now = Date.now();
+      fresh = fresh.filter(f => f.until > now);
+      let shown = "";
+      for (let i = 0; i < real.length; i++) shown += (holding || fresh.some(f => f.i === i)) ? real[i] : DOT;
+      input.value = shown;
+      input.classList.toggle("starry", !holding && fresh.length === 0 && real.length > 0);
+      btn.hidden = real.length === 0;
+      try { input.setSelectionRange(caret, caret); } catch {}
+      btn.classList.toggle("peeking", holding);
+      clearTimeout(timer);
+      if (fresh.length) timer = setTimeout(render, Math.max(50, Math.min(...fresh.map(f => f.until)) - now + 10));
     }
-    secret.value = shown;
-    secret.classList.toggle("starry", !holding && fresh.length === 0 && realSecret.length > 0);
-    eye.hidden = realSecret.length === 0;
-    try { secret.setSelectionRange(caret, caret); } catch {}
-    eye.classList.toggle("peeking", holding);
-    clearTimeout(renderTimer);
-    if (fresh.length) renderTimer = setTimeout(render, Math.max(50, Math.min(...fresh.map(f => f.until)) - now + 10));
-  }
-  function removeRange(a, b) {       // delete realSecret[a..b)
-    realSecret = realSecret.slice(0, a) + realSecret.slice(b);
-    fresh = fresh.filter(f => f.i < a || f.i >= b).map(f => f.i >= b ? { i: f.i - (b - a), until: f.until } : f);
-    caret = a;
-  }
-  secret.addEventListener("beforeinput", e => {
-    e.preventDefault();
-    const start = secret.selectionStart ?? realSecret.length, end = secret.selectionEnd ?? start;
-    if (e.inputType.startsWith("insert")) {
-      const text = (e.data || "").replace(/\n/g, "");
-      if (start !== end) removeRange(start, end);
-      realSecret = realSecret.slice(0, start) + text + realSecret.slice(start);
-      fresh = fresh.map(f => f.i >= start ? { i: f.i + text.length, until: f.until } : f);
-      const until = Date.now() + 1000;
-      for (let k = 0; k < text.length; k++) fresh.push({ i: start + k, until });
-      caret = start + text.length;
-    } else if (e.inputType === "deleteContentBackward") {
-      if (start !== end) removeRange(start, end); else if (start > 0) removeRange(start - 1, start);
-    } else if (e.inputType === "deleteContentForward") {
-      if (start !== end) removeRange(start, end); else if (start < realSecret.length) removeRange(start, start + 1);
-    } else if (e.inputType.startsWith("delete")) {
-      if (start !== end) removeRange(start, end);
+    function removeRange(a, b) {
+      real = real.slice(0, a) + real.slice(b);
+      fresh = fresh.filter(f => f.i < a || f.i >= b).map(f => f.i >= b ? { i: f.i - (b - a), until: f.until } : f);
+      caret = a;
     }
+    input.addEventListener("beforeinput", e => {
+      e.preventDefault();
+      const start = input.selectionStart ?? real.length, end = input.selectionEnd ?? start;
+      if (e.inputType.startsWith("insert")) {
+        const text = (e.data || "").replace(/\n/g, "");
+        if (start !== end) removeRange(start, end);
+        real = real.slice(0, start) + text + real.slice(start);
+        fresh = fresh.map(f => f.i >= start ? { i: f.i + text.length, until: f.until } : f);
+        const until = Date.now() + 1000;
+        for (let k = 0; k < text.length; k++) fresh.push({ i: start + k, until });
+        caret = start + text.length;
+      } else if (e.inputType === "deleteContentBackward") {
+        if (start !== end) removeRange(start, end); else if (start > 0) removeRange(start - 1, start);
+      } else if (e.inputType === "deleteContentForward") {
+        if (start !== end) removeRange(start, end); else if (start < real.length) removeRange(start, start + 1);
+      } else if (e.inputType.startsWith("delete")) {
+        if (start !== end) removeRange(start, end);
+      }
+      render();
+    });
+    input.addEventListener("keyup", () => { caret = input.selectionStart ?? caret; });
+    input.addEventListener("click", () => { caret = input.selectionStart ?? caret; });
+    const startHold = e => { e.preventDefault(); holding = true; render(); onHold && onHold(true, real); };
+    const endHold = () => { if (!holding) return; holding = false; render(); onHold && onHold(false, real); };
+    btn.addEventListener("pointerdown", startHold);
+    btn.addEventListener("pointerup", endHold);
+    btn.addEventListener("pointerleave", endHold);
+    btn.addEventListener("pointercancel", endHold);
+    window.addEventListener("blur", endHold);
+    btn.addEventListener("keydown", e => { if (e.key === "Enter" && !e.repeat) startHold(e); });
+    btn.addEventListener("keyup", e => { if (e.key === "Enter") endHold(); });
     render();
-  });
-  secret.addEventListener("keyup", () => { caret = secret.selectionStart ?? caret; });
-  secret.addEventListener("click", () => { caret = secret.selectionStart ?? caret; });
+    return { get: () => real };
+  }
+  const mainSecret = makeSecretBox(secret, $("eye"));
+  getSecret = mainSecret.get;
 
-  const startHold = e => { e.preventDefault(); holding = true; render(); };
-  const endHold = () => { if (!holding) return; holding = false; render(); };
-  eye.addEventListener("pointerdown", startHold);
-  eye.addEventListener("pointerup", endHold);
-  eye.addEventListener("pointerleave", endHold);
-  eye.addEventListener("pointercancel", endHold);
-  window.addEventListener("blur", endHold);
-  eye.addEventListener("keydown", e => { if (e.key === "Enter" && !e.repeat) startHold(e); });
-  eye.addEventListener("keyup", e => { if (e.key === "Enter") endHold(); });
-  render();
+  // ---------- chat view (sketch) ----------
+  // Pretend messages, all stored in code. Nothing leaves this page yet.
+  const SKETCH_KEY = "BECAUSE";
+  let me = "Aerin";
+  const messages = [
+    { from: "Dad",   at: "Yesterday 19:02", text: encode("Goodnight Aerin! I'm in Vegas, it's very sunny here", SKETCH_KEY) },
+    { from: "Aerin", at: "Yesterday 19:10", text: encode("Goodnight Dad! Did you win?", SKETCH_KEY) },
+    { from: "Dad",   at: "Today 08:15",     text: encode("Not yet. Secret mission for you: find where I hid the chocolate", SKETCH_KEY) },
+    { from: "Dad",   at: "Today 08:16",     text: encode("Clue: it is somewhere cold", SKETCH_KEY) },
+  ];
+  let unread = 2;                 // pretend two new ones arrived
+  const envelope = $("envelope"), chat = $("chat"), thread = $("thread"), compose = $("compose");
+  const mainCard = document.querySelector(".card"), header = document.querySelector("header"), howto = $("howto");
+
+  function refreshEnvelope() { envelope.classList.toggle("unread", unread > 0); }
+  function renderThread(key) {
+    thread.innerHTML = "";
+    thread.classList.toggle("decoded", !!key);
+    for (const m of messages) {
+      const b = document.createElement("div");
+      b.className = "bubble " + (m.from === me ? "me" : "them") + (key ? " readable" : "");
+      const shown = key ? decode(m.text, key) : m.text;
+      b.innerHTML = "<small>" + m.from + " · " + m.at + "</small><span></span>";
+      b.querySelector("span").textContent = shown;
+      thread.appendChild(b);
+    }
+    thread.scrollTop = thread.scrollHeight;
+  }
+  const chatSecret = makeSecretBox($("chat-secret"), $("keybtn"), (held, word) => renderThread(held ? cleanKey(word) : ""));
+
+  function openChat(prefill) {
+    header.hidden = true; mainCard.hidden = true; howto.hidden = true; chat.hidden = false;
+    unread = 0; refreshEnvelope();
+    renderThread("");
+    if (prefill) { compose.value = prefill; }   // no focus: we don't want the keyboard popping up
+  }
+  function closeChat() { chat.hidden = true; header.hidden = false; mainCard.hidden = false; howto.hidden = false; }
+  envelope.onclick = () => chat.hidden ? openChat() : closeChat();
+  $("btn-back").onclick = closeChat;
+  $("btn-switch").onclick = () => { me = me === "Aerin" ? "Dad" : "Aerin"; $("me-name").textContent = me; renderThread(""); };
+  $("btn-post").onclick = () => {
+    const text = compose.value.trim();
+    if (!text) return;
+    messages.push({ from: me, at: "Just now", text });
+    compose.value = "";
+    renderThread("");
+    // pretend the other person gets it: light the envelope later so you can see the bounce
+    setTimeout(() => { if (chat.hidden) { unread++; refreshEnvelope(); } }, 4000);
+  };
+  refreshEnvelope();
+
+  // cherry blossoms falling through the chat
+  function sprinklePetals(layer, count, sizeFrom, sizeTo) {
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement("div"); p.className = "petal";
+      const s = sizeFrom + Math.random() * (sizeTo - sizeFrom);
+      p.style.width = p.style.height = s + "px";
+      p.style.left = (Math.random() * 100) + "%";
+      p.style.animationDuration = (7 + Math.random() * 7) + "s";
+      p.style.animationDelay = (-Math.random() * 14) + "s";
+      p.style.opacity = (0.55 + Math.random() * 0.45).toFixed(2);
+      layer.appendChild(p);
+    }
+  }
+  sprinklePetals($("petals-behind"), 16, 10, 18);
+  sprinklePetals($("petals-front"), 7, 8, 13);
 
   message.addEventListener("keydown", e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) run("encode"); });
 
