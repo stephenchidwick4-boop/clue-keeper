@@ -1,5 +1,5 @@
 // Clue Keeper offline worker: saves the app the first time it loads, then serves it from the phone.
-const CACHE = "clue-keeper-v7";
+const CACHE = "clue-keeper-v8";
 const FILES = ["./", "./index.html", "./manifest.json", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/icon-180.png"];
 
 self.addEventListener("install", e => {
@@ -10,9 +10,11 @@ self.addEventListener("activate", e => {
 });
 // Try the network first (so updates arrive), fall back to the saved copy when offline.
 self.addEventListener("fetch", e => {
+  // Only this app's own GET requests. Firestore, the Firebase scripts and fonts go straight to the network, untouched.
+  if (e.request.method !== "GET" || new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(
     fetch(e.request).then(res => {
-      if (e.request.method === "GET" && res.ok && new URL(e.request.url).origin === location.origin) {
+      if (res.ok) {
         const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy));
       }
       return res;

@@ -179,8 +179,13 @@
   .compose { display: flex; gap: 8px; align-items: flex-end; }
   .compose textarea { flex: 1 1 auto; min-height: 44px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 16px; }
   .sendbtn { flex: 0 0 auto; padding: 12px 16px; font-size: 16px; }
-  .sketch-note { margin: 0; text-align: center; font-size: 12px; color: var(--muted); }
   .send { background: var(--lilac); }
+
+  /* ----- setup card ----- */
+  .who-picks { display: flex; gap: 12px; }
+  .who-picks button { flex: 1 1 0; font-size: 22px; padding: 22px 12px; background: var(--bg2); }
+  .who-picks button[aria-pressed="true"] { background: var(--lilac); outline: 3px solid var(--pink-deep); outline-offset: 2px; }
+  #setup-code { font-size: 16px; }
 
   details { background: var(--page-glow); border: 3px solid #3a2d5c; border-radius: 22px; padding: 14px 18px; color: var(--page-fg); }
   summary { cursor: pointer; font-weight: 700; color: var(--pink-deep); }
@@ -331,7 +336,7 @@
     </div>
   </section>
 
-  <!-- ===== chat view (sketch: pretend messages for now) ===== -->
+  <!-- ===== chat view ===== -->
   <section class="chat" id="chat" hidden>
     <div class="chat-top">
       <button class="back" id="btn-back" aria-label="Back to the encoder">‹</button>
@@ -363,7 +368,24 @@
       <textarea id="compose" rows="1" aria-label="Encoded message to send"></textarea>
       <button class="encode sendbtn" id="btn-post">Send ✦</button>
     </div>
-    <p class="sketch-note">Sketch mode: messages are pretend and live only on this screen for now.</p>
+    <div class="toast" id="chat-toast"></div>
+  </section>
+
+  <!-- ===== setup card: who you are and which mailbox ===== -->
+  <section class="chat" id="setup" hidden>
+    <div class="chat-top">
+      <button class="back" id="btn-setup-back" aria-label="Back">‹</button>
+      <div class="chat-title"><strong>Who are you?</strong></div>
+    </div>
+    <div class="who-picks">
+      <button type="button" id="pick-aerin" aria-pressed="false">Aerin</button>
+      <button type="button" id="pick-dad" aria-pressed="false">Dad</button>
+    </div>
+    <label for="setup-code">Mailbox code
+      <input id="setup-code" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+    </label>
+    <button class="encode" id="btn-setup-save">Save ✦</button>
+    <div class="toast" id="setup-toast"></div>
   </section>
 
   <details id="howto">
@@ -375,6 +397,8 @@
   </details>
 </main>
 
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script>
   // ---------- the cipher ----------
   const A = "A".charCodeAt(0);
@@ -407,7 +431,12 @@
   let lastMode = "";
   let getSecret = () => secret.value;   // replaced below once the peeking code is set up
 
-  function say(text) { toast.textContent = text; clearTimeout(say.t); say.t = setTimeout(() => toast.textContent = "", 2200); }
+  function say(text) {
+    const box = [$("chat-toast"), $("setup-toast")].find(el => !el.parentElement.hidden) || toast;   // whichever view is showing
+    if (say.box && say.box !== box) say.box.textContent = "";
+    say.box = box; box.textContent = text;
+    clearTimeout(say.t); say.t = setTimeout(() => box.textContent = "", 2200);
+  }
 
   function run(mode) {
     const key = cleanKey(getSecret());
@@ -491,56 +520,158 @@
   const mainSecret = makeSecretBox(secret, $("eye"));
   getSecret = mainSecret.get;
 
-  // ---------- chat view (sketch) ----------
-  // Pretend messages, all stored in code. Nothing leaves this page yet.
-  const SKETCH_KEY = "BECAUSE";
-  let me = "Aerin";
-  const messages = [
-    { from: "Dad",   at: "Yesterday 19:02", text: encode("Goodnight Aerin! I'm in Vegas, it's very sunny here", SKETCH_KEY) },
-    { from: "Aerin", at: "Yesterday 19:10", text: encode("Goodnight Dad! Did you win?", SKETCH_KEY) },
-    { from: "Dad",   at: "Today 08:15",     text: encode("Not yet. Secret mission for you: find where I hid the chocolate", SKETCH_KEY) },
-    { from: "Dad",   at: "Today 08:16",     text: encode("Clue: it is somewhere cold", SKETCH_KEY) },
-  ];
-  let unread = 2;                 // pretend two new ones arrived
-  const envelope = $("envelope"), chat = $("chat"), thread = $("thread"), compose = $("compose");
+  // ---------- mailbox settings (kept on this phone only) ----------
+  const SETTINGS_KEY = "clueKeeper.settings", SEEN_KEY = "clueKeeper.lastSeenAt";
+  function readStore(key) { try { return localStorage.getItem(key); } catch { return null; } }
+  function writeStore(key, value) { try { localStorage.setItem(key, value); } catch {} }
+  function loadSettings() {
+    try { const s = JSON.parse(readStore(SETTINGS_KEY)); return s && s.name && s.mailboxCode ? s : null; } catch { return null; }
+  }
+  let settings = loadSettings();
+  let lastSeenAt = Number(readStore(SEEN_KEY)) || 0;
+
+  // ---------- firestore ----------
+  // If the Firebase scripts couldn't load (no wifi, first visit), db stays null: the encoder still works.
+  const firebaseConfig = {
+    apiKey: "AIzaSyD_BhQnqzR4FKUTa696sevCoE49psVomcE",
+    authDomain: "clue-keeper-15623.firebaseapp.com",
+    projectId: "clue-keeper-15623",
+    storageBucket: "clue-keeper-15623.firebasestorage.app",
+    messagingSenderId: "369702554856",
+    appId: "1:369702554856:web:2c1bcb5325da2d9565cd5d"
+  };
+  let db = null;
+  try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    db.enablePersistence({ synchronizeTabs: true }).catch(() => {});   // not available everywhere; the chat works without it
+  } catch (err) { console.warn("Firebase unavailable", err); }
+  const messagesRef = () => db.collection("mailboxes").doc(settings.mailboxCode).collection("messages");
+
+  // ---------- chat view ----------
+  let messages = [];              // { from, text, at } oldest first; at is ms, or null while a sent message waits for the server
+  let unread = 0, heldKey = "", stopListening = null;
+  const envelope = $("envelope"), chat = $("chat"), setup = $("setup"), thread = $("thread"), compose = $("compose");
   const mainCard = document.querySelector(".card"), header = document.querySelector("header"), howto = $("howto");
 
-  function refreshEnvelope() { envelope.classList.toggle("unread", unread > 0); }
-  function renderThread(key) {
-    thread.innerHTML = "";
-    thread.classList.toggle("decoded", !!key);
+  function showView(view) {
+    header.hidden = mainCard.hidden = howto.hidden = view !== "main";
+    chat.hidden = view !== "chat";
+    setup.hidden = view !== "setup";
+  }
+  const chatInView = () => !chat.hidden && document.visibilityState === "visible";
+
+  function refreshUnread() {
+    unread = settings ? messages.filter(m => m.from !== settings.name && m.at !== null && m.at > lastSeenAt).length : 0;
+    envelope.classList.toggle("unread", unread > 0);
+  }
+  function markSeen() {
+    const newest = Math.max(0, ...messages.map(m => m.at || 0));
+    if (newest > lastSeenAt) { lastSeenAt = newest; writeStore(SEEN_KEY, String(newest)); }
+    refreshUnread();
+  }
+
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function friendlyTime(ms) {
+    if (ms === null) return "Just now";
+    const d = new Date(ms), now = new Date();
+    const clock = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    const day = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    if (day === new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) return "Today " + clock;
+    if (day === new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).getTime()) return "Yesterday " + clock;
+    return d.getDate() + " " + MONTHS[d.getMonth()] + " " + clock;
+  }
+
+  function renderThread(toBottom) {
+    const keepScroll = thread.scrollTop;
+    thread.replaceChildren();
+    thread.classList.toggle("decoded", !!heldKey);
     for (const m of messages) {
       const b = document.createElement("div");
-      b.className = "bubble " + (m.from === me ? "me" : "them") + (key ? " readable" : "");
-      const shown = key ? decode(m.text, key) : m.text;
-      b.innerHTML = "<small>" + m.from + " · " + m.at + "</small><span></span>";
-      b.querySelector("span").textContent = shown;
+      b.className = "bubble " + (settings && m.from === settings.name ? "me" : "them") + (heldKey ? " readable" : "");
+      const meta = document.createElement("small"), body = document.createElement("span");
+      meta.textContent = m.from + " · " + friendlyTime(m.at);
+      body.textContent = heldKey ? decode(m.text, heldKey) : m.text;
+      b.append(meta, body);
       thread.appendChild(b);
     }
-    thread.scrollTop = thread.scrollHeight;
+    thread.scrollTop = toBottom ? thread.scrollHeight : keepScroll;
   }
-  const chatSecret = makeSecretBox($("chat-secret"), $("keybtn"), (held, word) => renderThread(held ? cleanKey(word) : ""));
+  const chatSecret = makeSecretBox($("chat-secret"), $("keybtn"), (held, word) => { heldKey = held ? cleanKey(word) : ""; renderThread(false); });
+
+  // Runs for as long as the page is open, so the envelope updates even when the chat isn't showing.
+  function listen() {
+    if (stopListening) { stopListening(); stopListening = null; }
+    messages = [];
+    refreshUnread();
+    if (!db || !settings) return;
+    stopListening = messagesRef().orderBy("at", "asc").onSnapshot(snap => {
+      const before = messages.length;
+      messages = snap.docs.map(doc => {
+        const m = doc.data();
+        return { from: m.from, text: m.text, at: m.at && m.at.toMillis ? m.at.toMillis() : null };
+      }).sort((a, b) => (a.at === null) - (b.at === null) || (a.at || 0) - (b.at || 0));
+      if (chatInView()) markSeen(); else refreshUnread();
+      renderThread(messages.length > before);
+    }, err => {
+      console.warn("Could not load messages", err);
+      if (!chat.hidden) say("Couldn't load messages right now.");
+    });
+  }
+  document.addEventListener("visibilitychange", () => { if (chatInView()) markSeen(); });
 
   function openChat(prefill) {
-    header.hidden = true; mainCard.hidden = true; howto.hidden = true; chat.hidden = false;
-    unread = 0; refreshEnvelope();
-    renderThread("");
+    if (!settings) { openSetup(prefill, "main"); return; }
+    showView("chat");
+    $("me-name").textContent = settings.name;
+    markSeen();
+    renderThread(true);
     if (prefill) { compose.value = prefill; }   // no focus: we don't want the keyboard popping up
   }
-  function closeChat() { chat.hidden = true; header.hidden = false; mainCard.hidden = false; howto.hidden = false; }
   envelope.onclick = () => openChat();
-  $("btn-back").onclick = closeChat;
-  $("btn-switch").onclick = () => { me = me === "Aerin" ? "Dad" : "Aerin"; $("me-name").textContent = me; renderThread(""); };
+  $("btn-back").onclick = () => showView("main");
+  $("btn-switch").onclick = () => openSetup(undefined, "chat");
   $("btn-post").onclick = () => {
-    const text = compose.value.trim();
-    if (!text) return;
-    messages.push({ from: me, at: "Just now", text });
+    const text = compose.value;
+    if (!text.trim()) return;
+    if (text.length > 2000) { say("That message is too long to send."); return; }
+    if (!db) { say("Can't reach the mailbox right now."); return; }
     compose.value = "";
-    renderThread("");
-    // pretend the other person gets it: light the envelope later so you can see the bounce
-    setTimeout(() => { if (chat.hidden) { unread++; refreshEnvelope(); } }, 4000);
+    messagesRef().add({ from: settings.name, text, at: firebase.firestore.FieldValue.serverTimestamp() }).catch(err => {
+      console.warn("Could not send", err);
+      if (!compose.value) compose.value = text;   // don't lose what they wrote
+      say("Couldn't send that. Try again?");
+    });
   };
-  refreshEnvelope();
+
+  // ---------- setup card: who you are and which mailbox ----------
+  let pickedName = "", setupPrefill, setupFrom = "main";
+  function pickName(name) {
+    pickedName = name;
+    $("pick-aerin").setAttribute("aria-pressed", name === "Aerin");
+    $("pick-dad").setAttribute("aria-pressed", name === "Dad");
+  }
+  function openSetup(prefill, from) {
+    setupPrefill = prefill; setupFrom = from;
+    pickName(settings ? settings.name : "");
+    $("setup-code").value = settings ? settings.mailboxCode : "";
+    showView("setup");
+  }
+  $("pick-aerin").onclick = () => pickName("Aerin");
+  $("pick-dad").onclick = () => pickName("Dad");
+  $("btn-setup-back").onclick = () => { if (setupFrom === "chat") openChat(); else showView("main"); };
+  $("btn-setup-save").onclick = () => {
+    const code = $("setup-code").value.trim();
+    if (!pickedName) { say("Tap Aerin or Dad first!"); return; }
+    if (!code) { say("Type your mailbox code!"); return; }
+    if (code.includes("/") || /^\.\.?$/.test(code) || /^__.*__$/.test(code)) { say("That code won't work. Try letters and numbers."); return; }
+    const sameMailbox = settings && settings.mailboxCode === code;
+    settings = { name: pickedName, mailboxCode: code };
+    writeStore(SETTINGS_KEY, JSON.stringify(settings));
+    if (!sameMailbox) listen();
+    openChat(setupPrefill);
+  };
+  listen();
 
   // cherry blossoms falling through the chat
   function sprinklePetals(layer, count, sizeFrom, sizeTo) {
